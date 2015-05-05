@@ -1,0 +1,61 @@
+//sweep made for 2 servo's, in a pusher configuration
+//also a possibility to use a potmeter
+
+#include <Servo.h> 
+
+Servo myservo;   
+Servo myservo2;
+
+
+int pos = 0;    // variable to store the servo position 
+
+void setup() 
+{ 
+  myservo.attach(5);  // attaches the servo on pin 9 to the servo object 
+  myservo2.attach(6); 
+} 
+
+
+void loop() 
+{ 
+  //moveServoSlowly();
+  setPos();
+} 
+
+void setPos(){
+  int upperLimit = 90;
+  int lowerLimit = 0;
+
+  int pos = analogRead(0)/ 12 + lowerLimit ;
+  if ( pos > upperLimit ) pos = upperLimit;
+
+  myservo.write(pos - lowerLimit); 
+  myservo2.write( upperLimit - pos + lowerLimit);  
+
+delay(100);
+}
+
+void moveServoSlowly(){
+
+  int upperLimit = 90;
+  int lowerLimit = 0;
+  //testing the servo's
+  for(pos = lowerLimit; pos < upperLimit; pos += 1)  
+  {    
+    //blue indication    
+    myservo.write(pos - lowerLimit); 
+    myservo2.write( upperLimit - pos + lowerLimit);  
+    delay(15);                    
+  } 
+  for(pos = upperLimit; pos>=lowerLimit; pos-=1)   
+  {    
+    //blue indication    
+    myservo.write(pos - lowerLimit);
+    myservo2.write( upperLimit - pos+ lowerLimit);   
+
+
+    delay(15);                      
+  } 
+
+  delay(100);
+}
