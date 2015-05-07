@@ -1,0 +1,145 @@
+
+#include <SoftwareSerial.h>   //Software Serial Port
+#define RxD 2
+#define TxD 3
+
+#define DEBUG_ENABLED  1
+
+SoftwareSerial blueToothSerial(RxD,TxD);
+
+long timer;
+
+void blinker(int num){
+  for ( int i = 0; i<num;i++){
+    digitalWrite(5,HIGH);
+    delay(100);
+    digitalWrite(5,LOW);
+    delay(50);
+  }
+
+}
+
+void setup() 
+{ 
+  pinMode(RxD, INPUT);
+  pinMode(TxD, OUTPUT);
+  blueToothSerial.begin(57600);
+  timer = millis()+ 3000;
+
+  pinMode(5,OUTPUT);
+  blinker(1);
+  delay(1000);
+  //setupBlueToothConnection();
+
+} 
+
+void loop() 
+{ 
+
+  unsigned char temp;
+
+  while ( !blueToothSerial.available()){
+    if ( timer > millis())
+    {
+      timer = millis()+3000;
+      blinker(1);
+    }
+  }
+
+  temp =  blueToothSerial.read();
+  blinker(1);
+  delay(100);
+
+} 
+
+
+void setupBlueToothConnection()
+{
+  blueToothSerial.begin(57600); //Set BluetoothBee BaudRate to default baud rate 38400
+  // sendBlueToothCommand("\r\n+STBD=57600\r\n");// set baud rate
+  //delay(1000);
+  delay(1000);
+   blinker(1);
+
+  // blueToothSerial.begin(57600);
+  delay(1000);
+  sendBlueToothCommand("\r\n+STWMOD=1\r\n"); // 1 = master
+  sendBlueToothCommand("\r\n+STBD=57600\r\n");// set baud rate
+  sendBlueToothCommand("\r\n+STNA=SeeedBluetooth-st\r\n"); // name
+  sendBlueToothCommand("\r\n+STAUTO=1\r\n"); // auto connect
+  sendBlueToothCommand("\r\n+STOAUT=1\r\n"); // permit to connect
+  sendBlueToothCommand("\r\n +STPIN=0000\r\n");
+ sendBlueToothCommand("\r\n +LOSSRECONN=1\r\n");// permit auto recognition
+  delay(2000); // This delay is required.
+  blinker(1);
+  sendBlueToothCommand("\r\n+INQ=1\r\n");
+ 
+  //sendBlueToothCommand("\r\n+RTINQ=20,68,c9D,4C,0F,C3;MindWave Mobile\r\n");
+  delay(3000);
+ checkStopResponse();
+  blinker(1);
+delay(1000);
+  sendBlueToothCommand("\r\n+CONN=20,68,9D,4C,0F,C3\r\n");
+  delay(1000);
+  
+  blinker(1);
+  sendBlueToothCommand("\r\n+RTPIN=0000\r\n");
+  delay(50);
+  checkStopResponse();
+
+  blinker(5);
+  delay(1000);
+  blinker(5);
+  blueToothSerial.begin(57600);
+
+}
+
+void checkStopResponse(){
+  if(blueToothSerial.available())
+  {
+    char a = blueToothSerial.read();
+    while( (a = blueToothSerial.read()) != -1);
+  }
+}
+
+//Checks if the response "OK" is received
+void CheckOK()
+{
+  char a,b;
+  while(1)
+  {
+    if(blueToothSerial.available())
+    {
+      a = blueToothSerial.read();
+
+      if('O' == a)
+      {
+        // Wait for next character K. available() is required in some cases, as K is not immediately available.
+        while(blueToothSerial.available()) 
+        {
+          b = blueToothSerial.read();
+          break;
+        }
+        if('K' == b)
+        {
+          break;
+        }
+      }
+    }
+  }
+
+  while( (a = blueToothSerial.read()) != -1)
+  {
+    //Wait until all other response chars are received
+  }
+}
+
+void sendBlueToothCommand(char command[])
+{
+  blueToothSerial.print(command);
+  //CheckOK();   
+}
+
+
+
+
