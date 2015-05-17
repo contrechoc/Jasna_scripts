@@ -1,0 +1,149 @@
+/**
+generating test data in the AFFECT group
+storing the data in a text file
+ 
+ The various Address Patterns are: 
+ /COG/NEUTRAL; 
+ /COG/PUSH; 
+ /COG/PULL; 
+ /COG/LIFT; 
+ /COG/DROP; 
+ /COG/LEFT; 
+ /COG/RIGHT; 
+ /COG/ROTATE_LEFT; 
+ /COG/ROTATE_RIGHT; 
+ /COG/ROTATE_CLOCKWISE; 
+ /COG/ROTATE_COUNTER_CLOCKWISE; 
+ /COG/ROTATE_FORWARD; 
+ /COG/ROTATE_REVERSE; 
+ /COG/DISAPPEAR; 
+ /AFF/Engaged/Bored; 
+ /AFF/Excitement; 
+ /AFF/Excitement Long Term; 
+ /AFF/Meditation; 
+ /AFF/Frustration; 
+ /EXP/WINK_LEFT; 
+ /EXP/WINK_RIGHT; 
+ /EXP/BLINK; 
+ /EXP/LEFT_LID; 
+ /EXP/RIGHT_LID; 
+ /EXP/HORIEYE; 
+ /EXP/VERTEYE; 
+ /EXP/SMILE; 
+ /EXP/CLENCH; 
+ /EXP/LAUGH; 
+ /EXP/SMIRK_LEFT; 
+ /EXP/SMIRK_RIGHT; 
+ /EXP/FURROW; 
+ /EXP/EYEBROW.
+ 
+ 
+ */
+
+import oscP5.*;
+import netP5.*;
+
+//public float eng = 0;
+//ublic float exc = 0;
+int circleX = 240;
+
+import processing.serial.*;
+
+String[] lines;
+
+float exc = -1;
+float eng = -1;
+float exclt = -1;
+float med = -1;
+float frus = -1;
+float exc0, eng0, exclt0, med0, frus0;
+int counter = 0;
+
+OscP5 oscP5;
+
+void setup() {
+  size(480, 360);
+  frameRate(30);
+  smooth();
+
+  //start oscP5, listening for incoming messages on port 7400
+  //make sure this matches the port in Mind Your OSCs
+  oscP5 = new OscP5(this, 7400);
+
+  lines = new String[1000];
+
+  /*
+    // In case you want to see the list of available ports
+   println("List of Serial Ports: " +  Serial.list());
+   
+   // Using the first available port (might be different on your computer)
+   port = new Serial(this, "COM6", 9600); 
+   port.bufferUntil('\n');
+   */
+}
+
+
+
+
+
+void draw() {
+  background(0);
+}
+
+void drawBarGraph(float cogVal, int barY) {
+  if (eng >= 0.5) {
+    fill(color(22, 255, 113));
+  } else {
+    fill(color(255, 0, 0));
+  }
+  float len = map(eng, 0.0, 1.0, 0, 360);
+  rect(61, barY, len, 20);
+}
+
+void oscEvent(OscMessage theOscMessage) {
+
+  //println( theOscMessage );
+  /*
+   /AFF/Engaged/Bored; 
+   /AFF/Excitement; 
+   /AFF/Excitement Long Term; 
+   /AFF/Meditation; 
+   /AFF/Frustration; 
+   */
+  // check if theOscMessage has an address pattern we are looking for
+  if (theOscMessage.checkAddrPattern("/AFF/Excitement") == true) {
+    exc = theOscMessage.get(0).floatValue();
+    //println( "Excitement:   " + theOscMessage.get(0).floatValue());
+  } else if (theOscMessage.checkAddrPattern("/AFF/Engaged/Bored") == true) {
+    eng = theOscMessage.get(0).floatValue();
+    //println( "Engaged/Bored: ", theOscMessage.get(0).floatValue());
+  } else if (theOscMessage.checkAddrPattern("/AFF/Excitement Long Term") == true) {
+    exclt = theOscMessage.get(0).floatValue();
+    //println( "Engaged/Bored: ", theOscMessage.get(0).floatValue());
+  } else if (theOscMessage.checkAddrPattern("/AFF/Meditation") == true) {
+    med = theOscMessage.get(0).floatValue();
+    //println( "Engaged/Bored: ", theOscMessage.get(0).floatValue());
+  } else if (theOscMessage.checkAddrPattern("/AFF/Frustration") == true) {
+    frus = theOscMessage.get(0).floatValue();
+    //println( "Engaged/Bored: ", theOscMessage.get(0).floatValue());
+  }
+
+  if ( (abs( exc0 - exc) > 0.01) ||
+    (abs( eng0 - eng) > 0.01) ||
+    (abs( exclt - exclt0) > 0.01) ||
+    (abs( med - med0) > 0.01) ||
+    (abs( frus - frus0) > 0.01)) {
+    lines [counter] = hour()+","+ minute()+","+second()+","+exc + "," +eng +"," +exclt+","+med +"," +frus;
+    if (counter++ > 997 ) {
+      counter = 0;
+      saveStrings("lines"+hour()+"_"+minute()+"_"+second()+".txt", lines);
+    }
+    println( counter+ " ,"+lines [counter-1 ]);
+  }
+
+  exc0 = exc;
+  eng0 = eng;
+  exclt0 = exclt;
+  med0 = med;
+  frus0 = frus;
+}
