@@ -1,0 +1,88 @@
+/*
+* 
+sending codes to silhouettes
+ex01, ex02, ex03, ex04, ex05, 
+ex11, ex12, ex13, ex14, ex15, 
+
+
+ *
+ */
+
+
+#include <JeeLib.h>
+
+#include <avr/pgmspace.h>
+
+char inputString[] = {
+  '#','*', B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111
+, B11110000,B00001111,B11110000,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111
+} ;         // a string to hold incoming data
+boolean stringComplete = false;  // whether the string is complete
+unsigned char c = 0;
+char buf7[] = {
+  '#','*', B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111, 
+B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111} 
+; 
+
+
+int outputLED = 13;
+
+unsigned char bufferLength = 20;
+
+unsigned char offOn = 0;
+
+void setup(){
+
+  rf12_initialize('R', RF12_868MHZ, 212);
+  Serial.begin(9600);
+  Serial.println("start sending setup");
+
+  //LED
+  pinMode(outputLED, OUTPUT);//PB1
+  digitalWrite(outputLED,HIGH);
+  delay(100);
+  digitalWrite(outputLED,LOW);
+
+  //send test
+  rf12_sendStart(0, inputString, bufferLength , 0);
+
+}
+
+void loop(){
+
+  lookForSerial();
+  delay(1);
+
+}
+
+void lookForSerial() {
+ 
+  if ( Serial.available() ){
+
+    Serial.readBytes(buf7, bufferLength) ;
+
+    sendChars();
+    Serial.flush();
+    c=0;
+    //signal the sending
+    digitalWrite(outputLED,HIGH);
+    delay(300);
+    digitalWrite(outputLED,LOW);
+     delay(100);
+  }
+ 
+
+}
+
+void sendChars(){
+
+  while ((!rf12_canSend()) )
+    rf12_recvDone();
+    rf12_sendStart(0, buf7 , bufferLength , 0);
+
+  delay(50);
+
+
+
+}
+
