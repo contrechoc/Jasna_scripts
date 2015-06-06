@@ -1,0 +1,1051 @@
+//RF uses 13,12,11,10,2
+//bluetooth uses Serial, 0,1
+//ledstrip uses 3,4
+
+/*****************************************************************************/
+
+// Arduino Bluetooth Interface with Mindwave
+// Sophi Kravitz edit 11-4
+// Shane Clements edit 11-5
+
+/*****************************************************************************/
+
+#include <Adafruit_NeoPixel.h>
+#include <avr/power.h>
+
+#include "SPI.h"
+
+#include <JeeLib.h>
+
+byte payloadChecksum = 0;
+byte CalculatedChecksum;
+byte checksum = 0;              //data type byte stores an 8-bit unsigned number, from 0 to 255
+int payloadLength = 0;
+byte payloadData[100] = {
+  0
+};
+byte poorQuality = 0;
+int attention = 0;
+int meditation = 0;
+
+unsigned int delta_wave = 0;
+unsigned int theta_wave = 0;
+unsigned int low_alpha_wave = 0;
+unsigned int high_alpha_wave = 0;
+unsigned int low_beta_wave = 0;
+unsigned int high_beta_wave = 0;
+unsigned int low_gamma_wave = 0;
+unsigned int mid_gamma_wave = 0;
+
+// system variables
+long lastReceivedPacket = 0;
+boolean bigPacket = false;
+boolean brainwave = false;
+
+int oldMed = 0;
+
+/*****************************************************************************/
+
+// LPD8806-based RGB LED strip
+
+/*****************************************************************************/
+
+
+// Number of RGB LEDs in strand:
+int nLEDs = 144   ;//144
+
+#define PIN 6
+
+// Parameter 1 = number of pixels in strip
+// Parameter 2 = Arduino pin number (most are valid)
+// Parameter 3 = pixel type flags, add together as needed:
+//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
+//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
+//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
+//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(nLEDs, PIN, NEO_GRB + NEO_KHZ800);
+
+char cMode, r, g, b, c;
+
+/*****************************************************************************/
+
+/***RF12 lib's   ****/
+
+/*****************************************************************************/
+
+char inputString[] = {
+  '#', '*', B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111
+    , B11110000, B00001111, B11110000, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111
+}
+;         // a string to hold incoming data
+boolean stringComplete = false;  // whether the string is complete
+
+char buf7[] = {
+  '#', '*', B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111,
+  B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111, B00001111
+}
+;
+unsigned char bufferLength = 20;
+
+unsigned char modus = 2;
+
+unsigned long timer = 0;
+char timerCounter = 0;
+
+
+void setup() {
+
+
+  pinMode(7, OUTPUT);
+  blink7(3);
+
+  // Start up the LED strip
+  strip.begin();
+
+  // Update the strip, to start they are all 'off'
+  strip.show();
+  delay(500);
+
+  explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 5, 1); // Red
+
+  /*
+  delay(100);
+   explodeFromMiddle(  strip.Color(50 ,  0,  0),strip.Color(127,  0,  0),strip.Color(50,  20,  1), 100, 1); // Red
+   delay(100);
+   explodeFromMiddle(  strip.Color(50 ,  0,  0),strip.Color(127,  0,  0),strip.Color(50,  20,  1), 100, 1); // Red
+   */
+
+  //colorWipe(strip.Color(100, 100, 0), 10); // Red
+
+  //aggression();
+  //  sleepColors();
+
+  //RF12
+  rf12_initialize('R', RF12_868MHZ, 212);
+
+  //Bluetooth
+  Serial.begin(9600);       // Bluetooth
+  blink7(3);
+
+  timer = millis() + 5000;
+
+}
+
+// Fill the dots one after the other with a color
+void colorWipe(uint32_t c, uint8_t wait) {
+  for (uint16_t i = 0; i < strip.numPixels(); i++) {
+    strip.setPixelColor(i, c);
+    strip.show();
+    delay(wait);
+  }
+}
+
+void blink7(int numberOfTimes) {
+  for ( int i = 0; i < numberOfTimes ; i++) {
+    digitalWrite(7, HIGH);
+    delay(200);
+    digitalWrite(7, LOW);
+    delay(200);
+  }
+}
+
+void loop() {
+
+  if ( modus == 0 ) { //bluetooth
+
+    // Look for sync bytes
+    // Byte order: 0xAA, 0xAA, payloadLength, payloadData,
+    // Checksum (sum all the bytes of payload, take lowest 8 bits, then bit inverse on lowest
+    if (ReadOneByte() == 0xAA) {
+      if (ReadOneByte() == 0xAA) {
+
+        payloadLength = ReadOneByte();
+        if (payloadLength > 169) {
+          //Payload length can not be greater than 169
+          return;
+        }
+        payloadChecksum = 0;
+        for (int i = 0; i < payloadLength; i++) {     //loop until payload length is complete
+          payloadData[i] = ReadOneByte();             //Read payload
+          payloadChecksum += payloadData[i];
+        }
+        checksum = ReadOneByte();                     //Read checksum byte from stream
+        payloadChecksum = 255 - payloadChecksum;      //Take one’s compliment of generated checksum
+        if (checksum == payloadChecksum) {
+          poorQuality = 200;
+          attention = 0;
+          meditation = 0;
+        }
+        brainwave = false;
+        for (int i = 0; i < payloadLength; i++) { // Parse the payload
+          switch (payloadData[i]) {
+
+          case 02:
+            i++;
+            poorQuality = payloadData[i];
+            bigPacket = true;
+            break;
+          case 04:
+            i++;
+            attention = payloadData[i];
+            break;
+          case 05:
+            i++;
+            meditation = payloadData[i];
+            break;
+          case 0x80:
+            i = i + 3;
+            break;
+          case 0x83:                         // ASIC EEG POWER INT
+            i++;
+            brainwave = true;
+            byte vlen = payloadData[i];
+            read_waves(i + 1);
+            i += vlen;
+            break;
+          }                                 // switch
+        }                                   // for loop
+
+        if (brainwave && attention > 0 && attention < 100) {
+          //to do: rf12 sending data to laptop
+
+          blink7(1);
+
+          char giveMaxRawData = getMaximum();// get max of RAW WAVES
+          setColor(giveMaxRawData); // set color
+
+          colorWipe(strip.Color(r, g, b), 10); // Red
+
+          int limitVal = 85;
+
+          if ( (attention < limitVal) && (meditation < limitVal) ) {
+            //meditation= meditation / 3;
+            attention = (100 - attention) / 3;
+            for (int i = nLEDs / 2 - attention; i < nLEDs / 2 + attention; i++) {
+              strip.setPixelColor(i, strip.Color(g, r, b));
+              strip.show();
+            }
+          }
+          else if ( attention >= limitVal) {
+
+            colorChaseUP( strip.Color(r, g, b), strip.Color( r, g, b), strip.Color( r, g, b), 10); // Green
+            colorChaseDOWN(  strip.Color(r, g, b), strip.Color(r, g, b), strip.Color(r, g, b), 10); // White
+
+          }
+          else if ( meditation >= limitVal ) {
+
+            explodeFromMiddle(  strip.Color(r, g, b), strip.Color(r, g, b), strip.Color(r, g, b), 100, 1); // Red
+
+          }
+
+
+          delay(500);
+          timer = millis() + 5000;
+
+          //for(int i=0; i<strip.numPixels(); i++) strip.setPixelColor(i, 0);
+          /*
+          meditation = (meditation + oldMed)/2;
+           
+           buf7[2] = (char)(meditation/10+48);
+           buf7[3] = (char)(meditation%10+48);
+           buf7[4] = ',';
+           buf7[5] = (char)(attention/10+48);
+           buf7[6] = (char)(attention%10+48);
+           sendChars();
+           */
+
+        }
+      }
+    }
+  }
+  else if ( modus == 1 ) { //show modus
+
+    changeColor();
+
+    for (int i = 0; i < strip.numPixels(); i++) {
+      strip.setPixelColor(i, strip.Color(g, r, b));
+      strip.show();
+    }
+
+    delay(1000);
+
+    explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 100, 1); // Red
+    colorChaseUP(  strip.Color(  0, 127,  0), strip.Color(  127, 127,  0), strip.Color(  0, 127,  0), 100); // Green
+    explodeFromMiddle(  strip.Color(  0,  127, 127), strip.Color(  0,  0, 127), strip.Color(  0,  127, 127), 50, 1); // Blue
+    colorChaseDOWN(  strip.Color(1, 127, 0), strip.Color(0, 127, 127), strip.Color(1, 127, 0), 10); // White
+
+  }
+  else if ( modus == 2 ) {//receive from RF12 modus
+
+    receiveData();
+
+  }
+
+  else if ( modus == 3 ) {//receive from Serial for testing
+
+    patternTesting();
+
+
+  }
+
+
+}
+
+void changeColor() {
+
+  if ( cMode == 0 ) {
+    if (r > 0) r--;
+    if ( g < 127) g++;
+    b = 0;
+  }
+  if ( cMode == 1 ) {
+    r = 0;
+    if (g > 0) g--;
+    if ( b < 127) b++;
+  }
+
+  if ( cMode == 2 ) {
+    if (r < 127) r++;
+    g = 0;
+    b = 127;
+  }
+  if ( cMode == 3) {
+    r = 127;
+    if (g < 127)  g++;
+    if (b > 0)  b--;
+  }
+  if ( cMode == 4 ) {
+    if (r > 0) r--;
+    g = 127;
+    if ( b < 127) b++;
+  }
+  if ( cMode == 5 ) {
+    if ( r < 127)r++;
+    g = 127;
+    b = 127;
+  }
+  if ( cMode == 6 ) {
+    r = 127;
+    if (g > 0)g--;
+    if (b > 0) b--;
+  }
+
+  c++;
+  delay(100);
+
+  if ( c >= 254 ) cMode++;
+  if (cMode > 6)cMode = 0;
+
+}
+
+
+// Chase one dot down the full strip.  Good for testing purposes.
+void colorChaseUP(  uint32_t c0, uint32_t c1, uint32_t c3, uint8_t wait) {
+  int i;
+
+  // Start by turning all pixels off:
+  for (i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
+
+  // Then display one pixel at a time:
+  for (i = 1; i < strip.numPixels() - 1; i++) {
+    strip.setPixelColor(i - 1, c1);
+    strip.setPixelColor(i, c0); // Set new pixel 'on'
+    strip.setPixelColor(i + 1, c3);
+
+    if ( i > 10) {
+      strip.setPixelColor(i - 1 - 10, c1);
+      strip.setPixelColor(i - 10, c0); // Set new pixel 'on'
+      strip.setPixelColor(i + 1 - 10, c3);
+    }
+
+    if ( i > 20) {
+      strip.setPixelColor(i - 1 - 20, c1);
+      strip.setPixelColor(i - 20, c0); // Set new pixel 'on'
+      strip.setPixelColor(i + 1 - 20, c3);
+    }
+
+    strip.show();              // Refresh LED states
+    strip.setPixelColor(i, 0); // Erase pixel, but don't refresh!
+    strip.setPixelColor(i + 1, 0);
+    strip.setPixelColor(i - 1, 0);
+
+    if ( i > 10) {
+      strip.setPixelColor(i - 1 - 10, 0);
+      strip.setPixelColor(i - 10, 0); // Set new pixel 'on'
+      strip.setPixelColor(i + 1 - 10, 0);
+    }
+    if ( i > 20) {
+      strip.setPixelColor(i - 1 - 20, 0);
+      strip.setPixelColor(i - 20, 0); // Set new pixel 'on'
+      strip.setPixelColor(i + 1 - 20, 0);
+    }
+
+
+    delay(wait);
+  }
+
+  strip.show(); // Refresh to turn off last pixel
+}
+
+void colorChaseDOWN(  uint32_t c0, uint32_t c1, uint32_t c3, uint8_t wait) {
+  int i;
+
+  // Start by turning all pixels off:
+  for (i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
+
+  for (i = strip.numPixels() - 1; i > 1; i--) {
+    strip.setPixelColor(i - 1, c1);
+    strip.setPixelColor(i, c0); // Set new pixel 'on'
+    strip.setPixelColor(i + 1, c3);
+    strip.show();              // Refresh LED states
+    strip.setPixelColor(i, 0); // Erase pixel, but don't refresh!
+    strip.setPixelColor(i + 1, 0);
+    strip.setPixelColor(i - 1, 0);
+    delay(wait);
+  }
+  strip.show(); // Refresh to turn off last pixel
+}
+
+void explodeFromMiddle(  uint32_t c0, uint32_t c1, uint32_t c3, uint8_t wait, uint8_t wipe) {
+  int i;
+
+  // Start by turning all pixels off:
+  for (i = 0; i < strip.numPixels(); i++) strip.setPixelColor(i, 0);
+
+  for (i = strip.numPixels() / 2; i < strip.numPixels() - 1; i++) {
+    strip.setPixelColor(i - 1, c1);
+    strip.setPixelColor(i, c0); // Set new pixel 'on'
+    strip.setPixelColor(i + 1, c3);
+
+    strip.setPixelColor(strip.numPixels() - i + 1, c1);
+    strip.setPixelColor(strip.numPixels() - i, c0); // Set new pixel 'on'
+    strip.setPixelColor(strip.numPixels() - i - 1, c3);
+
+    strip.show();              // Refresh LED states
+    if ( wipe == 1) {
+      strip.setPixelColor(i, 0); // Erase pixel, but don't refresh!
+      strip.setPixelColor(i + 1, 0);
+      strip.setPixelColor(i - 1, 0);
+
+      strip.setPixelColor(strip.numPixels() - i, 0); // Erase pixel, but don't refresh!
+      strip.setPixelColor(strip.numPixels() - i + 1, 0);
+      strip.setPixelColor(strip.numPixels() - i - 1, 0);
+    }
+    delay(wait);
+  }
+
+  strip.show(); // Refresh to turn off last pixel
+}
+
+void sendChars() {
+
+  while ((!rf12_canSend()) )
+    rf12_recvDone();
+  rf12_sendStart(0, buf7 , bufferLength , 0);
+  delay(50);
+
+}
+
+byte ReadOneByte() {
+  int ByteRead;
+  // Wait until there is data
+  while (!Serial.available()) {
+    if ( (timer < millis()) ) {
+      timer = millis() + 5000;
+      waitAction();
+    }
+  }
+  //Get the number of bytes (characters) available for reading from the serial port.
+  //This is data that's already arrived and stored in the serial receive buffer (which holds 64 bytes)
+  ByteRead = Serial.read();
+  return ByteRead; // read incoming serial data
+}
+
+
+
+void read_waves(int i) {
+  delta_wave = read_3byte_int(i);
+  i += 3;
+  theta_wave = read_3byte_int(i);
+  i += 3;
+  low_alpha_wave = read_3byte_int(i);
+  i += 3;
+  high_alpha_wave = read_3byte_int(i);
+  i += 3;
+  low_beta_wave = read_3byte_int(i);
+  i += 3;
+  high_beta_wave = read_3byte_int(i);
+  i += 3;
+  low_gamma_wave = read_3byte_int(i);
+  i += 3;
+  mid_gamma_wave = read_3byte_int(i);
+}
+
+int read_3byte_int(int i) {
+  return ((payloadData[i] << 16) + (payloadData[i + 1] << 8) + payloadData[i + 2]);
+}
+
+char getMaximum() {
+
+  unsigned int rawVals[8] = {
+    delta_wave, theta_wave, low_alpha_wave, high_alpha_wave, low_beta_wave, high_beta_wave, low_gamma_wave, mid_gamma_wave
+  };
+  char max = -1;
+  for ( int j = 0; j < 8; j++) {
+    char h = 0;
+    for ( int i = 0; i < 8; i++) {
+      if ( rawVals[j] < rawVals[i] ) {
+        h = 1;
+        break;
+      }
+    }
+    if ( h == 0 ) {
+      max = j;
+      break;
+    }
+  }
+  return max;
+}
+
+/*
+explanation brainwaves from
+ https://learn.sparkfun.com/tutorials/hackers-in-residence---hacking-mindwave-mobile
+ 
+ Gamma waves are oscillating waves with frequencies around 40 Hz, although they can be as high as 100 Hz and as low as 24 Hz.
+ These originate from the thalamus (buried deep in the center of the brain) and are responsible for states of high attention and concentration.
+ 
+ Beta waves are between 12 and 30 Hz and are the states associated with normal waking consciousness. These are emitted from the motor cortex, a region of the cerebral cortex, which is the outermost layer of tissue on the brain. Beta waves are split into three sections: Low Beta Waves (12.5-16 Hz, “Beta 1 power”); Beta Waves (16.5–20 Hz, “Beta 2 power”); and High Beta Waves (20.5-28 Hz, “Beta 3 power”).
+ 
+ Alpha waves originate at the Occipital lobe and have a frequency of 8-12Hz. These are most present when you are awake but are very drowsy or relaxed.
+ 
+ Theta waves are oscillating waves that are located in the Hippocampus and are associated with dreaming. They are in the 4-7Hz range.
+ 
+ Delta waves are associated with very deep, dreamless sleep cycles and are high amplitude waves, which have a 0 to 3Hz frequency. These waves emit from both the thalamus and the cortex.
+ 
+ Mapping: brain visualiser: frequency -> rainbow spectrum
+ 
+ Delta: red
+ Theta: orange
+ Alpha: low: yellow - high: green
+ Beta: low:green - high: cyan
+ Gamma: low:blue - high: purple
+ 
+ Mapping behavior:
+ attention: height off color ball
+ meditation: size of color ball
+ 
+ positif reward for max attention: cycling from bottom to top
+ positif reward for meditation: cycling top to bottom
+ 
+ colors: red - green - blue --- yellow - purple - cyan
+ white grey
+ 
+ */
+
+void setColor(char giveMaxRawData) { //mapping of max to colors
+
+  switch (giveMaxRawData) {
+
+  case 0: //Delta: red
+    r = 255;
+    g = 0;
+    b = 0;
+    break;
+  case 1://Theta: orange
+    r = 255;
+    g = 100;
+    b = 0;
+    break;
+  case 2://Alpha: grey -
+    r = 255;
+    g = 255;
+    b = 0;
+    break;
+  case 3://Alpha:  - green - 0, 255, 0
+    r = 125;
+    g = 155;
+    b = 125;
+    break;
+  case 4://Beta: cyan - ( ?)
+    r = 0;
+    g = 255;
+    b = 255;
+    break;
+  case 5://Beta:  - (blue ?)
+    r = 0;
+    g = 0;
+    b = 255;
+    break;
+  case 6://Gamma: yellow -
+    r = 100;
+    g = 0;
+    b = 255;
+    break;
+  case 7://Gamma:  - orange
+    r = 255;
+    g = 0;
+    b = 255;
+    break;
+
+  case 8://soft orange
+    r = 125;
+    g = 0;
+    b = 125;
+    break;
+  case 9://soft orange
+    r = 255;
+    g = 50;
+    b = 125;
+    break;
+  case 10://soft orange
+    r = 50;
+    g = 50;
+    b = 255;
+    break;
+  case 11://soft orange
+    r = 255;
+    g = 255;
+    b = 255;
+    break;
+  case 12://soft orange
+    r = 0;
+    g = 0;
+    b = 0;
+    break;
+
+  }
+}
+
+void waitAction() {
+
+  int pos = 0;
+  blink7(1);
+  colorWipe(strip.Color(0, 0, 0), 50); // off
+
+  strip.setPixelColor( (timerCounter++ % 10), strip.Color(255, 0, 0));
+  strip.show();
+
+}
+
+void receiveData() {
+
+  char* buf = (char*) rf12_data;
+
+  if (rf12_recvDone() && rf12_crc == 0) {
+    blink7(3);
+    int check = 0;
+    int counter = 0;
+    int i = 0;
+    while ( i < 30 )
+    {
+      if ( buf[i] == '*' ) {
+        if ( buf[i + 1] == 'b') {
+          if ( buf[i + 2] == 'r') {
+            if ( buf[i + 3] == '1')      wave1();
+            else  if ( buf[i + 3] == '2')      wave2();
+            else  if ( buf[i + 3] == '3')      wave3();
+            else  if ( buf[i + 3] == '4')      wave4();
+            else  if ( buf[i + 3] == '5')      wave5();
+            else  if ( buf[i + 3] == '6')      wave6();
+            else  if ( buf[i + 3] == '7')      wave7();
+            else  if ( buf[i + 3] == '8')      wave8();
+            
+            else  if (  buf[i + 3] == 'a' ) {
+     modus = 2;
+      Serial.print("modus=2: receiving wireless ");
+    }
+     else if (  buf[i + 3] == 'b' ) {
+       modus = 3;
+        Serial.print("modus=3: receiving Serial ");
+    }
+    
+          }
+        }
+      }
+      i++;
+    }
+  }
+}
+
+void sleepColors() {
+  //sleep colors
+  for ( int f = 0; f < nLEDs * 2 ; f++) {
+    for (int i = 0; i < nLEDs; i++) {
+      strip.setPixelColor((i + f) % nLEDs, strip.Color( 12 + 212 * sin(PI * (i + f) / 30) , max(0, (25 + 25 * sin(PI * (f + nLEDs / 3) / 50))) , 70 + 70 * sin(PI * ((i / 2 + f) + nLEDs / 2) / 500)  ));
+      // strip.show();
+    }
+    delay(50);
+    strip.show();
+  }
+
+
+  setColor(8);
+  for ( int att = 0 ; att < nLEDs / 2; att++ ) {
+    r = r - 1;
+    for (int i = nLEDs / 2 - att; i < nLEDs / 2 + att; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    delay(50);
+    strip.show();
+  }
+  setColor(9);
+  for ( int att = 0 ; att < nLEDs / 2; att++ ) {
+    r = r - 3;
+    for (int i = nLEDs / 2 - att; i < nLEDs / 2 + att; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    delay(100 - att);
+    strip.show();
+  }
+  setColor(10);
+  for ( int att = 0 ; att < nLEDs / 2; att++ ) {
+    for (int i = nLEDs / 2 - att; i < nLEDs / 2 + att; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    delay(150 - att);
+    strip.show();
+  }
+
+
+}
+
+void aggression1() {
+
+  for ( int att = 0 ; att < 15; att++ ) {
+    r = 55;
+    g = 0;
+    b = 0;
+    for (int i = 0; i < nLEDs; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    strip.show();
+    delay ( 500 - att * 10);
+    r = 0;
+    g = 0;
+    b = 0;
+    for (int i = 0; i < nLEDs; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    strip.show();
+    delay ( 500 - att * 10);
+    r = 255;
+    g = 255;
+    b = 0;
+    for (int i = 0; i < nLEDs; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    strip.show();
+    delay ( 500 - att * 10);
+  }
+}
+
+void aggression() {
+
+  for (int j = 0; j < 5; j++) {
+    explodeFromMiddle(  strip.Color(255 ,  255,  255), strip.Color(255,  255,  255), strip.Color(255,  255,  255), 1, 0);
+    for ( int att = 0 ; att < 20; att++ ) {
+      for (int i = 0; i < nLEDs; i++) {
+        if ( ((i / (5 - att / 5)) % 2) == 0 )
+          strip.setPixelColor(i, strip.Color(255, 255, 0));
+        else
+          strip.setPixelColor(i, strip.Color(0, 0, 0));
+      }
+      strip.show();
+      delay(50);
+
+      for (int i = 0; i < nLEDs; i++) {
+        if ( ((i / (5 - att / 5)) % 2) == 1 )
+          strip.setPixelColor(i, strip.Color(255, 255, 0));
+        else
+          strip.setPixelColor(i, strip.Color(0, 0, 0));
+      }
+      strip.show();
+      delay(50);
+    }
+    for ( int att = 0 ; att < 20; att++ ) {
+      r = 55;
+      g = 0;
+      b = 0;
+      for (int i = 0; i < nLEDs; i++) {
+        strip.setPixelColor(i, strip.Color(r, g, b));
+      }
+      strip.show();
+      delay(1);
+    }
+  }
+
+  for ( int att = 0 ; att < 20; att++ ) {
+    r = 0;
+    g = 0;
+    b = 55;
+    for (int i = 0; i < nLEDs / 2; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    r = 55;
+    g = 0;
+    b = 0;
+    for (int i = nLEDs / 2; i < nLEDs; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    strip.show();
+    delay(500 - att * 23);
+
+    r = 55;
+    g = 0;
+    b = 0;
+    for (int i = 0; i < nLEDs / 2; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    r = 0;
+    g = 0;
+    b = 55;
+    for (int i = nLEDs / 2; i < nLEDs; i++) {
+      strip.setPixelColor(i, strip.Color(r, g, b));
+    }
+    strip.show();
+    delay(1000 - att * 45);
+  }
+
+  explodeFromMiddle(  strip.Color(255 ,  255,  255), strip.Color(255,  255,  255), strip.Color(255,  255,  255), 50, 1);
+
+}
+
+void patternTesting() {
+
+  if ( Serial.available()) {
+
+    char myByte = Serial.read();
+    
+    
+  if ( myByte == 'a' ) {
+     modus = 2;
+      Serial.print("modus=2: receiving wireless ");
+    }
+      if ( myByte == 'b' ) {
+         modus = 3;
+        Serial.print("modus=3: receiving Serial ");
+    }
+    
+    //Serial.print("I received: ");
+    //Serial.println(myByte);
+
+    if ( myByte == '1' ) {
+      wave1();
+    }
+
+    else if ( myByte == '2' ) {//waves -> blue
+      wave2();
+
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+    }
+
+
+
+    else if ( myByte == '3' ) { // yellow - black -- alternating -- longer
+      wave3();
+
+
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+
+    }
+
+
+    else if ( myByte == '4' ) { // red - blue -- now econd rolling
+      wave4();
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+    }
+
+    else if ( myByte == '5' ) { //alternating color blocks thirds yellow
+
+      wave5();
+      delay(1000);
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+    }
+
+    else if ( myByte == '6' ) { //flowing color block yellow
+      wave6();
+      delay(1000);
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+
+    }
+
+    else if ( myByte == '7' ) { //upgoing yelow
+      wave7();
+      delay(1000);
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+
+    }
+
+    else if ( myByte == '8' ) { //just colors
+
+      wave8();
+      delay(1000);
+      explodeFromMiddle(  strip.Color(50 ,  0,  0), strip.Color(127,  0,  0), strip.Color(50,  20,  1), 10, 1); // Red
+
+    }
+  }
+}
+
+void      wave1(){
+  explodeFromMiddle(  strip.Color(50 ,  0,  50), strip.Color(127,  0,  50), strip.Color(50,  20,  51), 10, 1); // Red
+}
+
+void     wave2(){
+
+  for ( int f = 0; f < nLEDs * 2 ; f++) {
+    for (int i = 0; i < nLEDs; i++) {
+      //strip.setPixelColor( (i + f) % nLEDs, strip.Color( 12 + 212 * sin(PI * (i + f) / 30) , max(0, (25 + 25 * sin(PI * (f + nLEDs / 3) / 50))) , 70 + 70 * sin(PI * ((i / 2 + f) + nLEDs / 2) / 500)  ));
+
+      strip.setPixelColor(  (i + f) % nLEDs,
+      strip.Color( 30 + 30 * sin(PI * (i + f) / 140), 0 , 180 + 140 * sin(PI * (i + f) / 150) ) 
+        );
+      if (( i%10)==0)  strip.show();
+    }
+    //delay(50);
+    strip.show();
+  }
+}
+
+void       wave3(){
+  for ( int att = 0 ; att < 60; att++ ) {
+    for (int i = 0; i < nLEDs; i++) {
+      if ( ((i / (10 - att / 5)) % 2) == 0 )
+        strip.setPixelColor(i, strip.Color(255, 255, 0));
+      else
+        strip.setPixelColor(i, strip.Color(0, 0, 0));
+    }
+    strip.show();
+    delay(50);
+  }
+
+}
+
+void       wave4(){
+  for (int i = 0; i < nLEDs / 2; i++) {
+    strip.setPixelColor(i, strip.Color(0,0, 55));
+  }
+  for (int i = nLEDs / 2; i < nLEDs; i++) {
+    strip.setPixelColor(i, strip.Color(55,0,0));
+  }
+  strip.show();
+  delay(1000);
+
+
+  for ( int j = 0; j < 10*nLEDs; j++) 
+  {
+    for (int i = 0; i < nLEDs / 2; i++) {
+      strip.setPixelColor((i+j)%nLEDs, strip.Color(0,0, 55));
+    }
+    for (int i = nLEDs / 2; i < nLEDs; i++) {
+      strip.setPixelColor((i+j)%nLEDs, strip.Color(55,0,0));
+    }
+    strip.show();
+  }
+
+
+}
+
+void       wave5(){
+
+  for (int i = 0; i < nLEDs / 3; i++) 
+    strip.setPixelColor(i, strip.Color(55,55, 0));
+  for (int i = nLEDs / 3; i < 2*nLEDs / 3; i++) 
+    strip.setPixelColor(i, strip.Color(0,0, 0));
+  for (int i = 2*nLEDs / 3; i < nLEDs; i++) 
+    strip.setPixelColor(i, strip.Color(55,55,0));
+  strip.show();
+  delay(1000);
+  for (int i = 0; i < nLEDs / 3; i++) 
+    strip.setPixelColor(i, strip.Color(0,0, 0));
+  for (int i = nLEDs / 3; i < 2*nLEDs / 3; i++) 
+    strip.setPixelColor(i, strip.Color(55,55, 0));
+  for (int i = 2*nLEDs / 3; i < nLEDs; i++) 
+    strip.setPixelColor(i, strip.Color(0,0,0));
+  strip.show();
+  delay(1000);
+  for (int i = 0; i < nLEDs / 3; i++) 
+    strip.setPixelColor(i, strip.Color(55,55, 0));
+  for (int i = nLEDs / 3; i < 2*nLEDs / 3; i++) 
+    strip.setPixelColor(i, strip.Color(0,0, 0));
+  for (int i = 2*nLEDs / 3; i < nLEDs; i++) 
+    strip.setPixelColor(i, strip.Color(55,55,0));
+  strip.show();
+}
+
+void  wave6(){
+  for ( int j = 0; j < 10*nLEDs; j++) 
+  {
+    for (int i = 0; i < nLEDs / 3; i++) 
+      strip.setPixelColor((i+j)%nLEDs, strip.Color(55,55, 0));
+    for (int i = nLEDs / 3; i < 2*nLEDs / 3; i++) 
+      strip.setPixelColor((i+j)%nLEDs, strip.Color(0,0, 0));
+    for (int i = 2*nLEDs / 3; i < nLEDs; i++) 
+      strip.setPixelColor((i+j)%nLEDs, strip.Color(55,55,0));
+    strip.show();
+  }
+}
+
+void wave7(){
+  for ( int j = 0; j < 3*nLEDs; j++) 
+  {
+    int totalK = 10;
+    int counterK = 0;
+    for ( int k = 0 ; k < nLEDs ; k++){
+      counterK++;
+      for (int i = k; i < (k+1)*nLEDs / totalK; i++) 
+        strip.setPixelColor((i+j)%nLEDs, strip.Color((counterK%2)*55,(counterK%2)*55, 0));
+    }
+    strip.show();
+  }
+}
+
+void  wave8(){
+  for (int h = 0; h<255; h++){
+    for ( int j = 0; j < nLEDs; j++) {
+      strip.setPixelColor(j , strip.Color(0,  0,  h) );
+      if (( j%20)==0)  strip.show();
+    }
+  }
+  for (int h = 255; h>0; h--){
+    for ( int j = 0; j < nLEDs; j++) {
+      strip.setPixelColor(j , strip.Color(0,  0,  h) );
+      if (( j%50)==0)  strip.show();
+    }
+  }
+  delay(1000);
+  for (int h = 0; h<255; h++){
+    for ( int j = 0; j < nLEDs; j++) {
+      strip.setPixelColor(j , strip.Color(h/4,  0,  h) );
+      if (( j%10)==0)  strip.show();  
+    }
+  }
+  for (int h = 255; h>125; h--){
+    for ( int j = 0; j < nLEDs; j++) 
+      strip.setPixelColor(j , strip.Color(h/4,  0,  h) );
+    strip.show();
+  }
+  delay(1000);
+  for (int h = 125; h<255; h++){
+    for ( int j = 0; j < nLEDs; j++) {
+      strip.setPixelColor(j , strip.Color(0,  h/2,  h) );
+      if (( j%10)==0)  strip.show();
+    }
+  }
+  for (int h = 255; h>125; h--){
+    for ( int j = 0; j < nLEDs; j++) 
+      strip.setPixelColor(j , strip.Color(0,  h/3,  h) );
+    strip.show();
+  }
+  delay(1000);
+  for (int h =125; h<255; h++){
+    for ( int j = 0; j < nLEDs; j++) 
+      strip.setPixelColor(j , strip.Color(h/5,  h/2,  h) );
+    strip.show();
+  }
+  for (int h = 255; h>0; h--){
+    for ( int j = 0; j < nLEDs; j++) 
+      strip.setPixelColor(j , strip.Color(h/3,  h/2,  h) );
+    strip.show();
+  }
+}
