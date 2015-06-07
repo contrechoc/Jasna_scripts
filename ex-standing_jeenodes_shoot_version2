@@ -1,0 +1,609 @@
+
+#include <Servo.h>
+
+Servo myservo0;
+Servo myservo1;
+Servo myservo2;
+Servo myservo3;
+
+int pos = 0;    // variable to store the servo position
+
+int limitHigh = 150;
+int limitLow = 40;
+
+/*****************************************************************************/
+
+/***RF12 lib's   ****/
+
+/*****************************************************************************/
+#include <JeeLib.h>
+
+char inputString[] = {
+  '#','*', B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111
+    , B11110000,B00001111,B11110000,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111
+} 
+;         // a string to hold incoming data
+boolean stringComplete = false;  // whether the string is complete
+
+char buf7[] = {
+  '#','*', B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111, 
+  B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111} 
+; 
+unsigned char bufferLength = 20;
+
+char frontOrBack = '1';
+
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println("ex-standing waves start1");
+  myservo0.attach(9);   
+  delay(10);  
+
+  myservo1.attach(3);   
+  delay(10);  
+  myservo2.attach(5);   
+  delay(10);  
+  myservo3.attach(6);   
+  delay(10);  
+
+  rf12_initialize('R', RF12_868MHZ, 212);
+
+  Serial.println("ex-standing waves start2");
+  //servoLoop();
+
+  //vibrating();//back
+}
+
+void loop()
+{
+
+  if ( Serial.available()){
+
+
+    char h = Serial.read();
+    if ( h == '1') excitement();
+    if ( h == '2') vibrating();
+    if ( h == '3') wave();
+    if ( h == '4') wave2();
+    if ( h == '5' ) wave3();
+    if ( h == '6' ) wave4();
+    if ( h == '7' ) wave5();
+    if ( h == '8' ) wave6();
+    if ( h == '9' ) {
+      vibrating();
+      delay(500);
+      vibrating2();
+      delay(500);
+      vibrating3();
+      delay(500);
+    }
+    if ( h == 'a' ) {
+      servoLoop();
+    }
+    if ( h == 'b' ) wave7();
+    if ( h == 'c' ) wave8();
+
+    if ( h == 'j' ) laugh1();
+    if ( h == 'k' ) laugh2();
+
+
+    // Serial.println("vibrate from serial");
+  }
+
+
+  char* buf = (char*) rf12_data;
+
+  if (rf12_recvDone() && rf12_crc == 0) {
+
+    Serial.println("friend sees data");
+    int check = 0;
+    int counter = 0;
+    int i = 0;
+    while ( i < 30 )
+    {
+      if ( buf[i] == 'e' ) {
+        if ( buf[i+1] == 'x') { 
+          
+            if ( buf[i+2] == '1') excitement();
+    if ( buf[i+2] == '2') vibrating();
+    if ( buf[i+2] == '3') wave();
+    if ( buf[i+2] == '4') wave2();
+    if ( buf[i+2] == '5' ) wave3();
+    if ( buf[i+2] == '6' ) wave4();
+    if ( buf[i+2] == '7' ) wave5();
+    if ( buf[i+2] == '8' ) wave6();
+    if ( buf[i+2] == '9' ) {
+      vibrating();
+      delay(500);
+      vibrating2();
+      delay(500);
+      vibrating3();
+      delay(500);
+    }
+    if ( buf[i+2] == 'a' ) {
+      servoLoop();
+    }
+    if ( buf[i+2] == 'b' ) wave7();
+    if ( buf[i+2] == 'c' ) wave8();
+
+    if ( buf[i+2] == 'j' ) laugh1();
+    if ( buf[i+2] == 'k' ) laugh2();
+         
+        }
+      }
+      i++;
+    }
+  }
+}
+
+void servoLoop(){
+  for (pos = limitLow; pos <= limitHigh; pos += 10) 
+  { // in steps of 1 degree
+    doServoPos(pos);
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= 10) 
+  {
+    doServoPos(pos);
+  }
+}
+
+void doServoPos(int pos){
+  // myservo0.write(pos);              // back 4 //front bottom right
+  delay(25);                     
+  //  myservo1.write(pos);              // back 3 // front upper let
+  delay(25);
+  myservo2.write(pos);              //back 2  //front upper right
+  delay(25);
+  // myservo3.write(pos);              // back 1 //front bottom left
+  delay(25);
+}
+
+
+
+void excitement() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(limitHigh - pos);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(limitHigh - pos);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+
+  vibrating();
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo1.write(limitHigh - pos);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo1.write(limitHigh - pos);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+
+  vibrating();
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo2.write(limitHigh - pos);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo2.write(limitHigh - pos);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+
+  vibrating();
+
+}
+
+void vibrating() {
+
+  int myDel_short = 20;
+
+  for ( int i = 0; i < 10; i++) {
+
+    if ( (i % 2) == 0 ) 
+      pos = limitLow; 
+    else pos = limitHigh;
+
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    delay(myDel_short);
+  }
+}
+
+void vibrating2() {
+
+  int myDel_short = 10;
+
+  for ( int i = 0; i < 20; i++) {
+
+    if ( (i % 2) == 1 ) 
+      pos = limitLow; 
+    else pos = limitHigh;
+
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(180 - pos);
+    delay(myDel_short);
+    myservo2.write(180 - pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    delay(myDel_short);
+  }
+}
+
+void vibrating3() {
+
+  int myDel_short = 10;
+
+  for ( int i = 0; i < 20; i++) {
+
+    if ( (i % 2) == 1 ) 
+      pos = limitLow + 20; 
+    else pos = limitHigh - 20;
+
+    myservo0.write(180 - pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(180 - pos);
+    delay(myDel_short);
+  }
+}
+
+void wave() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(limitHigh - pos);
+    delay(10); 
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(limitHigh - pos);
+    delay(10);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo1.write(limitHigh - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo1.write(limitHigh - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+void wave2() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(pos);
+    delay(10);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+void wave3() {
+  int stepPos = 2;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);                              
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);   
+  }
+}
+
+void wave4() {
+  int stepPos = 2;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);                              
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);   
+  }
+}
+
+void wave5() {
+  int stepPos = 2;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(180 - pos);
+    delay(10);                              
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(180 - pos);
+    delay(10);   
+  }
+}
+
+void wave6() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(180 - pos);
+    delay(10);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+
+void wave7() {
+  int stepPos = 1;
+  int nDelay = 30;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(180 - pos);
+    delay(10);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+void wave8() {
+  int stepPos = 1;
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    wave8Servo(); 
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    wave8Servo();            
+  }
+}
+
+void wave8Servo(){
+  int nDelay = 25;
+  myservo0.write(pos);
+  delay(10); 
+  if ( pos > limitLow + 20 ){
+    myservo1.write(pos - 20);             
+    delay(nDelay);    
+  }
+  if ( pos > limitLow + 40 )    {
+    myservo3.write(pos - 40);
+    delay(10);
+  }
+  if ( pos > limitLow + 60 ){
+    myservo2.write(pos - 60);              
+    delay(nDelay);      
+  } 
+
+}
+
+void laugh1(){
+  int stepPos = 5;
+  int nDelay = 10;
+  for (pos = 0; pos <= 180; pos += stepPos) // goes from 0 degrees to 180 degrees
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    myservo1.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+  for (pos = 180; pos >= 0; pos -= stepPos) // goes from 180 degrees to 0 degrees
+  {
+    myservo0.write(180 - pos);
+    myservo1.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+
+  for (pos = 0; pos <= 180; pos += stepPos) // goes from 0 degrees to 180 degrees
+  { // in steps of 1 degree
+    myservo1.write(180 - pos);
+    myservo2.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+  for (pos = 180; pos >= 0; pos -= stepPos) // goes from 180 degrees to 0 degrees
+  {
+    myservo1.write(180 - pos);
+    myservo2.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+
+  for (pos = 0; pos <= 180; pos += stepPos) // goes from 0 degrees to 180 degrees
+  { // in steps of 1 degree
+    myservo2.write(180 - pos);
+    myservo3.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+  for (pos = 180; pos >= 0; pos -= stepPos) // goes from 180 degrees to 0 degrees
+  {
+    myservo2.write(180 - pos);
+    myservo3.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+}
+
+void laugh2(){
+
+  int myDel_short = 20;
+
+  for ( int i = 0; i < 10; i++) {
+
+    if ( (i % 2) == 0 ) 
+      pos = 50; 
+    else pos = 120;
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    pos = pos + random(20);
+    delay(myDel_short);
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    delay(myDel_short);
+
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
