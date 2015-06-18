@@ -1,0 +1,845 @@
+
+#include <Servo.h>
+
+Servo myservo0;
+Servo myservo1;
+Servo myservo2;
+Servo myservo3;
+
+
+
+int pos = 0;    // variable to store the servo position
+
+int limitHigh = 150;
+int limitLow = 40;
+
+/*****************************************************************************/
+
+ 
+byte payloadChecksum = 0;
+byte CalculatedChecksum;
+byte checksum = 0;              //data type byte stores an 8-bit unsigned number, from 0 to 255
+int payloadLength = 0;
+byte payloadData[100] = {
+  0
+};
+byte poorQuality = 0;
+int attention = 0;
+int meditation = 0;
+
+unsigned int delta_wave = 0;
+unsigned int theta_wave = 0;
+unsigned int low_alpha_wave = 0;
+unsigned int high_alpha_wave = 0;
+unsigned int low_beta_wave = 0;
+unsigned int high_beta_wave = 0;
+unsigned int low_gamma_wave = 0;
+unsigned int mid_gamma_wave = 0;
+
+// system variables
+long lastReceivedPacket = 0;
+boolean bigPacket = false;
+boolean brainwave = false;
+
+int oldMed = 0;
+
+
+
+/*****************************************************************************/
+
+/***RF12 lib's   ****/
+
+/*****************************************************************************/
+#include <JeeLib.h>
+
+char inputString[] = {
+  '#','*', B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111
+    , B11110000,B00001111,B11110000,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111
+} 
+;         // a string to hold incoming data
+boolean stringComplete = false;  // whether the string is complete
+
+char buf7[] = {
+  '#','*', B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111, 
+  B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111,B00001111} 
+; 
+unsigned char bufferLength = 20;
+
+char frontOrBack = '1';
+
+/*****************************************************************************/
+
+unsigned char modus = 0;//1 = serial //2 RF12
+
+unsigned long timer = 0;
+char timerCounter = 0;
+
+/*****************************************************************************/
+
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println("ex-standing waves start1");
+  myservo0.attach(9);   
+  delay(10);  
+
+  myservo1.attach(3);   
+  delay(10);  
+  myservo2.attach(5);   
+  delay(10);  
+  myservo3.attach(6);   
+  delay(10);  
+
+  rf12_initialize('R', RF12_868MHZ, 212);
+
+  Serial.println("ex-standing waves start2");
+  //servoLoop();
+
+  //vibrating();//back
+}
+
+void loop()
+{
+  
+    if ( modus == 0 ){//bluetooth connection
+    
+    bluetoothModus();
+    
+  }else if ( modus == 1 ){ //receiving orders via Serial
+
+
+  if ( Serial.available()){
+
+
+    char h = Serial.read();
+    if ( h == '1') excitement();
+    if ( h == '2') vibrating();
+    if ( h == '3') wave();
+    if ( h == '4') wave2();
+    if ( h == '5' ) wave3();
+    if ( h == '6' ) wave4();
+    if ( h == '7' ) wave5();
+    if ( h == '8' ) wave6();
+    if ( h == '9' ) {
+      vibrating();
+      delay(500);
+      vibrating2();
+      delay(500);
+      vibrating3();
+      delay(500);
+    }
+    if ( h == 'a' ) {
+      servoLoop();
+    }
+    if ( h == 'b' ) wave7();
+    if ( h == 'c' ) wave8();
+
+    if ( h == 'j' ) laugh1();
+    if ( h == 'k' ) laugh2();
+
+
+    // Serial.println("vibrate from serial");
+  }
+  }
+
+  else if ( modus == 2 ){ // receiving orders via RF12
+  char* buf = (char*) rf12_data;
+
+  if (rf12_recvDone() && rf12_crc == 0) {
+
+    Serial.println("friend sees data");
+    int check = 0;
+    int counter = 0;
+    int i = 0;
+    while ( i < 30 )
+    {
+      if ( buf[i] == 'e' ) {
+        if ( buf[i+1] == 'x') { 
+          
+            if ( buf[i+2] == '1') excitement();
+    if ( buf[i+2] == '2') vibrating();
+    if ( buf[i+2] == '3') wave();
+    if ( buf[i+2] == '4') wave2();
+    if ( buf[i+2] == '5' ) wave3();
+    if ( buf[i+2] == '6' ) wave4();
+    if ( buf[i+2] == '7' ) wave5();
+    if ( buf[i+2] == '8' ) wave6();
+    if ( buf[i+2] == '9' ) {
+      vibrating();
+      delay(500);
+      vibrating2();
+      delay(500);
+      vibrating3();
+      delay(500);
+    }
+    if ( buf[i+2] == 'a' ) {
+      servoLoop();
+    }
+    if ( buf[i+2] == 'b' ) wave7();
+    if ( buf[i+2] == 'c' ) wave8();
+
+    if ( buf[i+2] == 'j' ) laugh1();
+    if ( buf[i+2] == 'k' ) laugh2();
+         
+        }
+      }
+      i++;
+    }
+  }
+  }
+}
+
+void servoLoop(){
+  for (pos = limitLow; pos <= limitHigh; pos += 10) 
+  { // in steps of 1 degree
+    doServoPos(pos);
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= 10) 
+  {
+    doServoPos(pos);
+  }
+}
+
+void doServoPos(int pos){
+  // myservo0.write(pos);              // back 4 //front bottom right
+  delay(25);                     
+  //  myservo1.write(pos);              // back 3 // front upper let
+  delay(25);
+  myservo2.write(pos);              //back 2  //front upper right
+  delay(25);
+  // myservo3.write(pos);              // back 1 //front bottom left
+  delay(25);
+}
+
+
+
+void excitement() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(limitHigh - pos);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(limitHigh - pos);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+
+  vibrating();
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo1.write(limitHigh - pos);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo1.write(limitHigh - pos);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+
+  vibrating();
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo2.write(limitHigh - pos);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo2.write(limitHigh - pos);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+
+  vibrating();
+
+}
+
+void vibrating() {
+
+  int myDel_short = 20;
+
+  for ( int i = 0; i < 10; i++) {
+
+    if ( (i % 2) == 0 ) 
+      pos = limitLow; 
+    else pos = limitHigh;
+
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    delay(myDel_short);
+  }
+}
+
+void vibrating2() {
+
+  int myDel_short = 10;
+
+  for ( int i = 0; i < 20; i++) {
+
+    if ( (i % 2) == 1 ) 
+      pos = limitLow; 
+    else pos = limitHigh;
+
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(180 - pos);
+    delay(myDel_short);
+    myservo2.write(180 - pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    delay(myDel_short);
+  }
+}
+
+void vibrating3() {
+
+  int myDel_short = 10;
+
+  for ( int i = 0; i < 20; i++) {
+
+    if ( (i % 2) == 1 ) 
+      pos = limitLow + 20; 
+    else pos = limitHigh - 20;
+
+    myservo0.write(180 - pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(180 - pos);
+    delay(myDel_short);
+  }
+}
+
+void wave() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(limitHigh - pos);
+    delay(10); 
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(limitHigh - pos);
+    delay(10);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo1.write(limitHigh - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo1.write(limitHigh - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+void wave2() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(pos);
+    delay(10);
+    myservo3.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+void wave3() {
+  int stepPos = 2;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);                              
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);   
+  }
+}
+
+void wave4() {
+  int stepPos = 2;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);                              
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(pos);
+    delay(10);   
+  }
+}
+
+void wave5() {
+  int stepPos = 2;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(180 - pos);
+    delay(10);                              
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(pos);
+    delay(10); 
+    myservo3.write(180 - pos);
+    delay(10);                            
+    myservo1.write(pos);
+    delay(10);
+    myservo2.write(180 - pos);
+    delay(10);   
+  }
+}
+
+void wave6() {
+  int stepPos = 5;
+  int nDelay = 20;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(180 - pos);
+    delay(10);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+
+void wave7() {
+  int stepPos = 1;
+  int nDelay = 30;
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    delay(10); 
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo0.write(180 - pos);
+    delay(10);
+    myservo1.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    myservo3.write(180 - pos);
+    delay(10);
+    myservo2.write(pos);              
+    delay(nDelay);                    
+  }
+}
+
+void wave8() {
+  int stepPos = 1;
+
+  for (pos = limitLow; pos <= limitHigh; pos += stepPos) 
+  { // in steps of 1 degree
+    wave8Servo(); 
+  }
+  for (pos = limitHigh; pos >= limitLow; pos -= stepPos) 
+  {
+    wave8Servo();            
+  }
+}
+
+void wave8Servo(){
+  int nDelay = 25;
+  myservo0.write(pos);
+  delay(10); 
+  if ( pos > limitLow + 20 ){
+    myservo1.write(pos - 20);             
+    delay(nDelay);    
+  }
+  if ( pos > limitLow + 40 )    {
+    myservo3.write(pos - 40);
+    delay(10);
+  }
+  if ( pos > limitLow + 60 ){
+    myservo2.write(pos - 60);              
+    delay(nDelay);      
+  } 
+
+}
+
+void laugh1(){
+  int stepPos = 5;
+  int nDelay = 10;
+  for (pos = 0; pos <= 180; pos += stepPos) // goes from 0 degrees to 180 degrees
+  { // in steps of 1 degree
+    myservo0.write(180 - pos);
+    myservo1.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+  for (pos = 180; pos >= 0; pos -= stepPos) // goes from 180 degrees to 0 degrees
+  {
+    myservo0.write(180 - pos);
+    myservo1.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+
+  for (pos = 0; pos <= 180; pos += stepPos) // goes from 0 degrees to 180 degrees
+  { // in steps of 1 degree
+    myservo1.write(180 - pos);
+    myservo2.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+  for (pos = 180; pos >= 0; pos -= stepPos) // goes from 180 degrees to 0 degrees
+  {
+    myservo1.write(180 - pos);
+    myservo2.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+
+  for (pos = 0; pos <= 180; pos += stepPos) // goes from 0 degrees to 180 degrees
+  { // in steps of 1 degree
+    myservo2.write(180 - pos);
+    myservo3.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+  for (pos = 180; pos >= 0; pos -= stepPos) // goes from 180 degrees to 0 degrees
+  {
+    myservo2.write(180 - pos);
+    myservo3.write(pos);              // tell servo to go to position in variable 'pos'
+    delay(nDelay);                      // waits 15ms for the servo to reach the position
+  }
+}
+
+void laugh2(){
+
+  int myDel_short = 20;
+
+  for ( int i = 0; i < 10; i++) {
+
+    if ( (i % 2) == 0 ) 
+      pos = 50; 
+    else pos = 120;
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    pos = pos + random(20);
+    delay(myDel_short);
+    myservo0.write(pos);
+    delay(myDel_short);
+    myservo1.write(pos);
+    delay(myDel_short);
+    myservo2.write(pos);
+    delay(myDel_short);
+    myservo3.write(pos);
+    delay(myDel_short);
+
+  }
+}
+
+
+void bluetoothModus(){
+  
+  // Look for sync bytes
+    // Byte order: 0xAA, 0xAA, payloadLength, payloadData,
+    // Checksum (sum all the bytes of payload, take lowest 8 bits, then bit inverse on lowest
+    if (ReadOneByte() == 0xAA) {
+      if (ReadOneByte() == 0xAA) {
+
+        payloadLength = ReadOneByte();
+        if (payloadLength > 169) {
+          //Payload length can not be greater than 169
+          return;
+        }
+        payloadChecksum = 0;
+        for (int i = 0; i < payloadLength; i++) {     //loop until payload length is complete
+          payloadData[i] = ReadOneByte();             //Read payload
+          payloadChecksum += payloadData[i];
+        }
+        checksum = ReadOneByte();                     //Read checksum byte from stream
+        payloadChecksum = 255 - payloadChecksum;      //Take one’s compliment of generated checksum
+        if (checksum == payloadChecksum) {
+          poorQuality = 200;
+          attention = 0;
+          meditation = 0;
+        }
+        brainwave = false;
+        for (int i = 0; i < payloadLength; i++) { // Parse the payload
+          switch (payloadData[i]) {
+
+          case 02:
+            i++;
+            poorQuality = payloadData[i];
+            bigPacket = true;
+            break;
+          case 04:
+            i++;
+            attention = payloadData[i];
+            break;
+          case 05:
+            i++;
+            meditation = payloadData[i];
+            break;
+          case 0x80:
+            i = i + 3;
+            break;
+          case 0x83:                         // ASIC EEG POWER INT
+            i++;
+            brainwave = true;
+            byte vlen = payloadData[i];
+            read_waves(i + 1);
+            i += vlen;
+            break;
+          }                                 // switch
+        }                                   // for loop
+
+        if (brainwave && attention > 0 && attention < 100) {
+          //to do: rf12 sending data to laptop
+
+          blink7(1);
+
+          char giveMaxRawData = getMaximum();// get max of RAW WAVES
+          //setColor(giveMaxRawData); // set color
+
+          //colorWipe(strip.Color(r, g, b), 10); 
+
+          int limitVal = 85;
+
+          if ( (attention < limitVal) && (meditation < limitVal) ) {
+            //meditation= meditation / 3;
+           
+          }
+          else if ( attention >= limitVal) {
+
+      
+          }
+          else if ( meditation >= limitVal ) {
+
+      
+          }
+
+
+          //delay(500);
+          //timer = millis() + 5000;
+
+          //for(int i=0; i<strip.numPixels(); i++) strip.setPixelColor(i, 0);
+          /*
+          meditation = (meditation + oldMed)/2;
+           
+           buf7[2] = (char)(meditation/10+48);
+           buf7[3] = (char)(meditation%10+48);
+           buf7[4] = ',';
+           buf7[5] = (char)(attention/10+48);
+           buf7[6] = (char)(attention%10+48);
+           sendChars();
+           */
+
+        }
+      }
+    }
+  }
+  
+  void blink7(int numberOfTimes) {
+  for ( int i = 0; i < numberOfTimes ; i++) {
+    digitalWrite(7, HIGH);
+    delay(200);
+    digitalWrite(7, LOW);
+    delay(200);
+  }
+}
+
+byte ReadOneByte() {
+  int ByteRead;
+  // Wait until there is data
+  while (!Serial.available()) {
+    if ( (timer < millis()) ) {
+      timer = millis() + 5000;
+      waitAction();
+    }
+  }
+  //Get the number of bytes (characters) available for reading from the serial port.
+  //This is data that's already arrived and stored in the serial receive buffer (which holds 64 bytes)
+  ByteRead = Serial.read();
+  return ByteRead; // read incoming serial data
+}
+
+
+
+void read_waves(int i) {
+  delta_wave = read_3byte_int(i);
+  i += 3;
+  theta_wave = read_3byte_int(i);
+  i += 3;
+  low_alpha_wave = read_3byte_int(i);
+  i += 3;
+  high_alpha_wave = read_3byte_int(i);
+  i += 3;
+  low_beta_wave = read_3byte_int(i);
+  i += 3;
+  high_beta_wave = read_3byte_int(i);
+  i += 3;
+  low_gamma_wave = read_3byte_int(i);
+  i += 3;
+  mid_gamma_wave = read_3byte_int(i);
+}
+
+int read_3byte_int(int i) {
+  return ((payloadData[i] << 16) + (payloadData[i + 1] << 8) + payloadData[i + 2]);
+}
+
+char getMaximum() {
+
+  unsigned int rawVals[8] = {
+    delta_wave, theta_wave, low_alpha_wave, high_alpha_wave, low_beta_wave, high_beta_wave, low_gamma_wave, mid_gamma_wave
+  };
+  char max = -1;
+  for ( int j = 0; j < 8; j++) {
+    char h = 0;
+    for ( int i = 0; i < 8; i++) {
+      if ( rawVals[j] < rawVals[i] ) {
+        h = 1;
+        break;
+      }
+    }
+    if ( h == 0 ) {
+      max = j;
+      break;
+    }
+  }
+  return max;
+}
+
+void waitAction() {
+
+  int pos = 0;
+  blink7(1);
+ 
+ //something to indicate being alive
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
