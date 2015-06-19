@@ -1,0 +1,13 @@
+  char buf[] = {
+    0,0,0,0                  };
+
+  char h0 = reading/1000;
+  char h1 = (reading  - h0*1000)/100;
+  char h2 = (reading  - h0*1000 - h1*100)/10;
+  char h3 = (reading  - h0*1000 - h1*100 - h2*10);
+
+
+  buf[0] = h0;
+  buf[1] = h1;
+  buf[2] = h2 ;
+  buf[3] = h3 ;
